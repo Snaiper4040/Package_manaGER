@@ -1,0 +1,61 @@
+#!/usr/bin/env python3
+import socket
+import sys
+import subprocess
+import time
+import os
+from multiprocessing import Process
+
+socket_path = '/tmp/pger.sock'
+
+def connect(command):
+    for i in range(50):  # Таймаут 5 сек
+        if os.path.exists(socket_path):
+            break
+        time.sleep(0.1)
+    else:
+        print("Ошибка: pger не запущен. Попробуйте 'pger start'")
+        return
+    
+    try:
+        sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        sock.connect(socket_path)
+        sock.send(command.encode('utf-8'))
+        response = sock.recv(4096).decode('utf-8')
+        print(response)
+        sock.close()
+    except Exception as e:
+        print(f"Ошибка подлючения к pger: {e}")
+
+if __name__ == '__main__':
+    if len(sys.argv) < 2:
+        print("Использование: pger <command> [args]\
+        \nКоманды:\
+        \nstart - запуск pger\
+        \nstop - остановка pger\
+        \ninstall somePge 1.0.0 - уствановка пакета\
+        \ndelete somePge 1.0.0 - удаление пакета. Третий аргумент True удаляет пакет из кэша\
+        \nlist - вывод списка пакетов\
+        \nclear_cache - очситка кэша\
+        \nupdate_cache - обновление кэша")
+        sys.exit(1)
+    
+    cmd = sys.argv[1]
+    if cmd == 'start':
+        # Создаём процесс и запускаем его
+        if os.path.exists(socket_path):
+            print("Ошибка: pger уже запущен.\
+            \nЕсли такого процесса нет, попробуйте 'rm /tmp/pger.sock'")
+            os._exit(os.EX_OK)
+        from Pger import Pger
+        pger = Pger()
+        pger_process = Process(target=pger.run)
+        pger_process.start()
+        print("pger запущен.")
+        os._exit(os.EX_OK)
+    elif cmd == 'stop':
+        connect('stop')
+    else:
+        # Клиент: отправка команды
+        command = 'call_method:' + ' '.join(sys.argv[1:])
+        connect(command)
